@@ -1,2 +1,4 @@
 
 src/main/resources/manager.properties
+AzureMediaServicesManager.iml
+.idea/
