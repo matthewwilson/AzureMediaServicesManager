@@ -1,6 +1,7 @@
 package so.mwil.mediaservicesmanager;
 
 import org.apache.http.Header;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -14,6 +15,148 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         PropertiesHelper properties = new PropertiesHelper();
+
+        startStreaming(properties);
+        stopStreaming(properties);
+    }
+
+    private static void stopStreaming(PropertiesHelper properties) throws Exception {
+
+        String clientId = properties.getProperty("clientId");
+        String clientSecret = properties.getProperty("clientSecret");
+        String streamingEndpointName = properties.getProperty("streamingEndpointName");
+        String channelName = properties.getProperty("channelName");
+        String assetName = properties.getProperty("assetName");
+        String programName = properties.getProperty("programName");
+
+        String accessToken = HttpHelpers.getAccessToken(clientId, clientSecret);
+        Header accessTokenHeader = new BasicHeader("Authorization","Bearer "+accessToken);
+
+        String redirectUri = HttpHelpers.getRedirectUri(accessTokenHeader);
+
+        JSONObject program = retrieveProgram(redirectUri, accessTokenHeader, programName);
+        stopProgram(redirectUri, accessTokenHeader, program.getString("Id"));
+        deleteProgram(redirectUri, accessTokenHeader, program.getString("Id"));
+
+        String assetId = retrieveAssetId(redirectUri, accessTokenHeader, assetName);
+        deleteAsset(redirectUri, accessTokenHeader, assetId);
+
+        //stop channel
+        String channelId = retrieveChannelId(redirectUri, accessTokenHeader, channelName);
+        stopChannel(redirectUri, accessTokenHeader, channelId);
+
+        //stop streaming endpoint
+        String streamingEndpointId = retrieveStreamingEndpointId(redirectUri, accessTokenHeader, streamingEndpointName);
+        stopStreamingEndpoint(redirectUri, accessTokenHeader, streamingEndpointId);
+    }
+
+    private static void stopStreamingEndpoint(String redirectUri, Header accessTokenHeader, String channelId) throws Exception {
+        System.out.println("### BEGINNING STOP STREAMING ENDPOINT PROCESS ###");
+
+        HttpPost post = HttpHelpers.GetHttpPostForUrl(redirectUri + "StreamingEndpoints('"+channelId+"')/Stop", accessTokenHeader);
+
+        String postResponseOperationId = HttpHelpers.executeAndGetOperationId(post, 202);
+
+        System.out.println("Streaming Endpoint has been stopped, waiting for state to change to Stopped");
+        if(waitForOperationToComplete(redirectUri, postResponseOperationId, accessTokenHeader, 100)) {
+            System.out.println("Successfully stopped Streaming Endpoint");
+        }
+
+        System.out.println("### FINISHED STOP STREAMING ENDPOINT PROCESS ###");
+    }
+
+    private static String retrieveStreamingEndpointId(String redirectUri, Header accessTokenHeader, String streamingEndpointName) throws Exception {
+        System.out.println("### BEGINNING RETRIEVE STREAMING ENDPOINT ID PROCESS ###");
+
+        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUri + "StreamingEndpoints", accessTokenHeader);
+        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
+
+        JSONArray assets = getJsonResponse.getJSONArray("value");
+
+        for(int i = 0; i < assets.length(); i++) {
+
+            JSONObject asset = (JSONObject) assets.get(i);
+
+            if(asset.getString("Name").equalsIgnoreCase(streamingEndpointName)) {
+                System.out.println("Found the "+streamingEndpointName+" channel");
+                System.out.println("### FINISHED RETRIEVE STREAMING ENDPOINT ID PROCESS ###");
+                return asset.getString("Id");
+            }
+        }
+
+        throw new Exception("Couldn't find the channel!");
+    }
+
+    private static void stopChannel(String redirectUri, Header accessTokenHeader, String channelId) throws Exception {
+        System.out.println("### BEGINNING STOP CHANNEL PROCESS ###");
+
+        HttpPost post = HttpHelpers.GetHttpPostForUrl(redirectUri + "Channels('"+channelId+"')/Stop", accessTokenHeader);
+
+        String postResponseOperationId = HttpHelpers.executeAndGetOperationId(post, 202);
+
+        System.out.println("Channel has been stopped, waiting for state to change to Stopped");
+        if(waitForOperationToComplete(redirectUri, postResponseOperationId, accessTokenHeader, 100)) {
+            System.out.println("Successfully stopped Channel");
+        }
+
+        System.out.println("### FINISHED STOP CHANNEL PROCESS ###");
+    }
+
+    private static String retrieveChannelId(String redirectUri, Header accessTokenHeader, String channelName) throws Exception {
+        System.out.println("### BEGINNING RETRIEVE CHANNEL ID PROCESS ###");
+
+        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUri + "Channels", accessTokenHeader);
+        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
+
+        JSONArray assets = getJsonResponse.getJSONArray("value");
+
+        for(int i = 0; i < assets.length(); i++) {
+
+            JSONObject asset = (JSONObject) assets.get(i);
+
+            if(asset.getString("Name").equalsIgnoreCase(channelName)) {
+                System.out.println("Found the "+channelName+" channel");
+                System.out.println("### FINISHED RETRIEVE CHANNEL ID PROCESS ###");
+                return asset.getString("Id");
+            }
+        }
+
+        throw new Exception("Couldn't find the channel!");
+    }
+
+    private static void deleteAsset(String redirectUri, Header accessTokenHeader, String assetId) throws Exception {
+        System.out.println("### BEGINNING DELETE ASSET PROCESS ###");
+
+        HttpDelete delete = HttpHelpers.GetHttpDeleteForUrl(redirectUri + "Assets('" + assetId + "')", accessTokenHeader);
+
+        HttpHelpers.execute(delete, 204);
+
+        System.out.println("### FINISHED DELETE ASSET PROCESS ###");
+    }
+
+    private static String retrieveAssetId(String redirectUri, Header accessTokenHeader, String assetName) throws Exception {
+        System.out.println("### BEGINNING RETRIEVE ASSET ID PROCESS ###");
+
+        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUri + "Assets", accessTokenHeader);
+        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
+
+        JSONArray assets = getJsonResponse.getJSONArray("value");
+
+        for(int i = 0; i < assets.length(); i++) {
+
+            JSONObject asset = (JSONObject) assets.get(i);
+
+            if(asset.getString("Name").equalsIgnoreCase(assetName)) {
+                System.out.println("Found the "+assetName+" asset");
+                System.out.println("### FINISHED RETRIEVE ASSET ID PROCESS ###");
+                return asset.getString("Id");
+            }
+        }
+
+        throw new Exception("Couldn't find the asset!");
+    }
+
+    private static void startStreaming(PropertiesHelper properties) throws Exception {
 
         String clientId = properties.getProperty("clientId");
         String clientSecret = properties.getProperty("clientSecret");
@@ -59,6 +202,53 @@ public class Main {
         }
 
         System.out.println(manifestUrl);
+    }
+
+    private static void deleteProgram(String redirectUri, Header accessTokenHeader, String programId) throws Exception {
+        System.out.println("### BEGINNING DELETE PROGRAM PROCESS ###");
+
+        HttpDelete delete = HttpHelpers.GetHttpDeleteForUrl(redirectUri + "Programs('" + programId + "')", accessTokenHeader);
+
+        HttpHelpers.execute(delete, 204);
+
+        System.out.println("### FINISHED DELETE PROGRAM PROCESS ###");
+    }
+
+    private static JSONObject retrieveProgram(String redirectUri, Header accessTokenHeader, String programName) throws Exception {
+        System.out.println("### BEGINNING RETRIEVE PROGRAM PROCESS ###");
+
+        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUri + "Programs", accessTokenHeader);
+        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
+
+        JSONArray programs = getJsonResponse.getJSONArray("value");
+
+        for(int i = 0; i < programs.length(); i++) {
+
+            JSONObject program = (JSONObject) programs.get(i);
+
+            if(program.getString("Name").equalsIgnoreCase(programName)) {
+                System.out.println("Found the "+programName+" program");
+                System.out.println("### FINISHED RETRIEVE PROGRAM PROCESS ###");
+                return program;
+            }
+        }
+
+        throw new Exception("Couldn't find the program!");
+    }
+
+    private static void stopProgram(String redirectUri, Header accessTokenHeader, String programId) throws Exception {
+        System.out.println("### BEGINNING STOP PROGRAM PROCESS ###");
+
+        HttpPost post = HttpHelpers.GetHttpPostForUrl(redirectUri + "Programs('"+programId+"')/Stop", accessTokenHeader);
+
+        String postResponseOperationId = HttpHelpers.executeAndGetOperationId(post, 202);
+
+        System.out.println("Program has been stopped, waiting for state to change to Stopped");
+        if(waitForOperationToComplete(redirectUri, postResponseOperationId, accessTokenHeader, 100)) {
+            System.out.println("Successfully stopped Program");
+        }
+
+        System.out.println("### FINISHED STOP PROGRAM PROCESS ###");
     }
 
     private static JSONObject retrieveAssetFiles(String redirectUri, Header accessTokenHeader, String assetId) throws Exception {
@@ -283,10 +473,12 @@ public class Main {
 
     private static boolean waitForOperationToComplete(String redirectUrl, String operationId, Header accessTokenHeader, int retryCount) throws Exception {
 
-        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUrl+"Operations('"+operationId+"')", accessTokenHeader);
-        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
-
         System.out.println("Checking state...");
+        HttpGet get = HttpHelpers.GetHttpGetForUrl(redirectUrl+"Operations('"+operationId+"')", accessTokenHeader);
+        System.out.println("Getting state response...");
+        JSONObject getJsonResponse = HttpHelpers.executeAndGetJsonResponse(get, 200);
+        System.out.println("Checking state response...");
+
         if(!getJsonResponse.getString("State").equals("Succeeded")) {
 
             System.out.println("State was "+getJsonResponse.getString("State")+" going to wait and try again in 10sec, there are "+retryCount+" attempts left.");

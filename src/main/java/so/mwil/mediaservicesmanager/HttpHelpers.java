@@ -4,6 +4,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -19,12 +20,20 @@ import java.net.URLEncoder;
  */
 public class HttpHelpers {
 
-    private static HttpClient httpClient = HttpClientBuilder.create().build();
+    private static HttpClient getHttpClient() {
+        return HttpClientBuilder.create().build();
+    }
 
     public static HttpPost GetHttpPostForUrl(String url, Header accessTokenHeader) {
         HttpPost post = new HttpPost(url);
         AddRequiredHeaders(accessTokenHeader, post);
         return post;
+    }
+
+    public static HttpDelete GetHttpDeleteForUrl(String url, Header accessTokenHeader) {
+        HttpDelete delete = new HttpDelete(url);
+        AddRequiredHeaders(accessTokenHeader, delete);
+        return delete;
     }
 
     public static HttpGet GetHttpGetForUrl(String url, Header accessTokenHeader) {
@@ -43,7 +52,7 @@ public class HttpHelpers {
     public static String executeAndGetOperationId(HttpUriRequest request, int expectedResponseCode) throws Exception {
         request.addHeader("Accept","application/json;odata=minimalmetadata");
 
-        HttpResponse response = httpClient.execute(request);
+        HttpResponse response = getHttpClient().execute(request);
 
         if(response.getStatusLine().getStatusCode() == expectedResponseCode) {
             return response.getFirstHeader("operation-id").getValue();
@@ -52,10 +61,20 @@ public class HttpHelpers {
         }
     }
 
+    public static void execute(HttpUriRequest request, int expectedResponseCode) throws Exception {
+        request.addHeader("Accept","application/json;odata=minimalmetadata");
+
+        HttpResponse response = getHttpClient().execute(request);
+
+        if(response.getStatusLine().getStatusCode() != expectedResponseCode) {
+            throw new Exception("Unexpected status code was: "+response.getStatusLine().getStatusCode()+" expected "+expectedResponseCode);
+        }
+    }
+
     public static JSONObject executeAndGetJsonResponse(HttpUriRequest request, int expectedResponseCode) throws Exception {
         request.addHeader("Accept","application/json;odata=minimalmetadata");
 
-        HttpResponse response = httpClient.execute(request);
+        HttpResponse response = getHttpClient().execute(request);
 
         if(response.getStatusLine().getStatusCode() == expectedResponseCode) {
             String responseString = IOUtils.toString(response.getEntity().getContent());
@@ -76,7 +95,7 @@ public class HttpHelpers {
         get.addHeader("MaxDataServiceVersion", "3.0");
         get.addHeader("x-ms-version", "2.8");
 
-        HttpResponse response = httpClient.execute(get);
+        HttpResponse response = getHttpClient().execute(get);
 
         if(response.getStatusLine().getStatusCode() == 301) {
             String responseString = IOUtils.toString(response.getEntity().getContent());
@@ -100,7 +119,7 @@ public class HttpHelpers {
         input.setContentType("application/x-www-form-urlencoded");
         postAccessTokenRequest.setEntity(input);
 
-        HttpResponse response = httpClient.execute(postAccessTokenRequest);
+        HttpResponse response = getHttpClient().execute(postAccessTokenRequest);
 
         if(response.getStatusLine().getStatusCode() != 200) {
             throw new RuntimeException("Could not get access token, HTTP ERROR CODE: "+ response.getStatusLine().getStatusCode());
